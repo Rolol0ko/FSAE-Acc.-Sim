@@ -3,22 +3,22 @@ import matplotlib.pyplot as plt
 
 # Vehicle & environment
 M_VEHICLE = 226.0       # [kg] vehicle + driver mass
-M_REAR_AXLE = 0.62      # [%] mass percent on rear axle
-CG_H_OVER_WHEEL = 0.18  # [m] CG height / Wheelbase
-LIFT_FACTOR = -7.33     # [m^2]
-LIFT_SPLIT = 0.5        # [%]
 G = 9.81                # [m/s^2] gravity
 CR = 0.012              # [-] rolling resistance coefficient
-MU_LONG = 0.9           # [-] friction coefficient of the tires
 R_TIRE = 0.2032         # [m] effective loaded tire radius
 D_AIR = 1.225           # [kg/m^3] air density
 CD = 0.1                # [-] drag coefficient
 A_FRONTAL = 1.0         # [m^2] frontal area
+MU_PEAK = 1.4           # peak friction coefficient
+KAPPA_PEAK = 0.60       # slip ratio at peak (~10%)
+MU_SLIDE = 0.9          # sliding friction at high slip
 DRAG_COEFF = 0.5 * D_AIR * CD * A_FRONTAL  # [N/(m/s)^2] coefficient for F_drag = D * v^2
+N_DRIVEN = M_VEHICLE * G
 
 # Powertrain
 PRIMARY_REDUCTION = 1.974     # [-] engine primary reduction
 FINAL_DRIVE = 3.727           # [-] final drive ratio
+FINAL_DRIVE_NEW = 3.417       # [-] proposed final drive ratio
 GEAR_RATIOS = {
     1: 2.687,
     2: 2.105,
@@ -94,9 +94,27 @@ def wheel_torque_from_rpm(rpm: float) -> float:
     # Convert to N·m for the rest of the model
     return tq_lbft * 1.35581795
 
-def traction_limited_force(F_drive_ideal: float, mass: float, v: float) -> float:
-    F_max = M_VEHICLE * MU_LONG * G * (M_VEHICLE * M_REAR_AXLE - CR * CG_H_OVER_WHEEL - (0.5 * D_AIR * LIFT_FACTOR) / (M_VEHICLE * G) * LIFT_FACTOR * LIFT_SPLIT * v**2) / (1.0 + MU_LONG * CG_H_OVER_WHEEL)
+def tire_mu_from_slip(kappa: float) -> float:
+    """
+    Very simple longitudinal mu(kappa) curve.
+    kappa > 0 for traction; curve rises to a peak then falls slightly.
+    """
+    kappa = max(kappa, 0.0)
 
+    if kappa <= KAPPA_PEAK:
+        # Linear build-up to peak
+        return MU_PEAK * (kappa / KAPPA_PEAK)
+    else:
+        # Exponential decay toward slide friction
+        decay = np.exp(-(kappa - KAPPA_PEAK) / 0.2)
+        return MU_SLIDE + (MU_PEAK - MU_SLIDE) * decay
+
+def traction_limited_force(F_drive_ideal: float, normal_load: float, kappa: float) -> float:
+    """
+    Traction limit using a simple mu(kappa) curve.
+    """
+    mu = tire_mu_from_slip(kappa)
+    F_max = mu * normal_load
     return float(np.clip(F_drive_ideal, -F_max, F_max))
 
 def simulate_run(final_drive: float = FINAL_DRIVE, shift_delay: float = SHIFT_DELAY):
@@ -159,8 +177,14 @@ def simulate_run(final_drive: float = FINAL_DRIVE, shift_delay: float = SHIFT_DE
             # Ideal wheel thrust
             F_drive_ideal = T_in / R_TIRE
 
+            # Longitudinal slip ratio (simple definition, avoid div-by-zero)
+            if velocity < 0.1:  # near standstill, approximate high slip
+                kappa = 1.0
+            else:
+                kappa = (omega_w - velocity) / max(velocity, 1e-3)
+
             # Apply simple traction limit
-            F_drive = traction_limited_force(F_drive_ideal, M_VEHICLE, velocity)
+            F_drive = traction_limited_force(F_drive_ideal, N_DRIVEN, kappa)
 
         # Resistive forces
         F_drag = DRAG_COEFF * velocity**2
@@ -282,6 +306,36 @@ def plot_torque_curve():
     plt.legend()
     plt.show()
 
+def plot_FD_curves(results):
+    # small sweep over final drive ratios and shift delay times
+    plt.figure()
+
+    fds = np.linspace(2, 4.5, 20)
+    shift_delays = np.linspace(0.09, 1, 5)
+
+    for sd in shift_delays:
+        times = []
+        for fd in fds:
+            res_fd = simulate_run(final_drive=fd, shift_delay=sd)
+            times.append(res_fd['t_final'])
+        plt.plot(times, fds, 'k')
+
+    plt.plot(results["t"][-1], FINAL_DRIVE, 'or')
+    res = simulate_run(FINAL_DRIVE_NEW, SHIFT_DELAY)
+    plt.plot(res["t"][-1], FINAL_DRIVE_NEW, 'og')
+    res = simulate_run(3.182, SHIFT_DELAY)
+    plt.plot(res["t"][-1], 3.182, '*b')
+    res = simulate_run(2.917, SHIFT_DELAY)
+    plt.plot(res["t"][-1], 2.917, '*c')
+    
+    plt.ylabel("Final drive ratio")
+    plt.ylim(2, 4.5)
+    plt.xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
+    plt.xlim(3.5, 6)
+    plt.grid(True)
+    plt.title(f"Shift Delay Time Effect on Final Drive Ratio)")
+    plt.show()
+
 if __name__ == "__main__":
     # Single run with current parameters
     res = simulate_run(FINAL_DRIVE, SHIFT_DELAY)
@@ -289,24 +343,6 @@ if __name__ == "__main__":
     print_distance_summary(res)
     plot_results(res)
     #plot_torque_curve()
+    #plot_FD_curves(res)
 
-    '''
-    plt.figure()
-    # small sweep over final drive ratios and shift delay times
-    fds = np.linspace(2, 7, 40)
-    shift_delays = np.linspace(0.09, 1, 20)
 
-    for sd in shift_delays:
-        times = []
-        for fd in fds:
-            res_fd = simulate_run(final_drive=fd, shift_delay=sd)
-            times.append(res_fd['t_final'])
-            print(f"FD={fd:.2f} -> time={res_fd['t_final']:.3f} s")
-        plt.plot(times, fds, 'k')
-
-    plt.ylabel("Final drive ratio")
-    plt.xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
-    plt.grid(True)
-    plt.title(f"Shift Delay Time Effect on Final Drive Ratio)")
-    plt.show()
-    '''
