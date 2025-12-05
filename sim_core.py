@@ -247,44 +247,37 @@ def print_time_summary(results):
     print(f"Speed at end: {v_final * 3.6:.1f} km/h")
     print(f"Distance covered: {x_final:.1f} m")
 
-def plot_results(results):
+def plot_results(axes, results):
     t = results["t"]
     v = results["v"]
     a = results["a"]
     gear = results["gear"]
     rpm = results["engine_rpm"]
 
-    fig, axs = plt.subplots(4, 1, figsize=(8, 10), sharex=True)
+    ax0, ax1, ax2, ax3 = axes
 
     # Speed
-    axs[0].plot(t, v * 3.6, label="Speed")
-    axs[0].set_ylabel("Speed [km/h]")
-    axs[0].grid(True)
+    ax0.plot(t, v * 3.6, label="Speed")
+    ax0.set_ylabel("Speed [km/h]")
+    ax0.grid(True)
 
     # Acceleration in Gs
-    axs[1].plot(t, a / G, label="Accel", color="C1")  # G = 9.81 defined at top
-    axs[1].set_ylabel("a_x [G]")
-    axs[1].grid(True)
+    ax1.plot(t, a / G, label="Accel", color="C1")  # G = 9.81 defined at top
+    ax1.set_ylabel("a_x [G]")
+    ax1.grid(True)
     
     # Engine RPM
-    axs[2].plot(t, rpm, label="Engine RPM", color="C3")
-    axs[2].set_ylabel("RPM")
-    axs[2].grid(True)
+    ax2.plot(t, rpm, label="Engine RPM", color="C3")
+    ax2.set_ylabel("RPM")
+    ax2.grid(True)
 
     # Gear
-    axs[3].step(t, gear, where="post", label="Gear", color="C2")
-    axs[3].set_ylabel("Gear")
-    axs[3].set_xlabel("Time [s]")
-    axs[3].grid(True)
+    ax3.step(t, gear, where="post", label="Gear", color="C2")
+    ax3.set_ylabel("Gear")
+    ax3.set_xlabel("Time [s]")
+    ax3.grid(True)
 
-    fig.suptitle(
-        f"FSAE Accel Simulation\nFD={results['final_drive']:.2f}, "
-        f"shift delay={results['shift_delay']*1000:.0f} ms"
-    )
-    plt.tight_layout()
-    plt.show()
-
-def plot_torque_curve():
+def plot_torque_curve(ax):
     """Plot the engine torque curve using engine_torque_from_rpm()."""
     # Base RPM points from the map (for markers)
     rpms_base = WHEEL_TORQUE_POINTS[:, 0]
@@ -297,84 +290,82 @@ def plot_torque_curve():
     tq_nm_smooth = np.array([wheel_torque_from_rpm(r) for r in rpm_smooth])
     tq_lbft_smooth = tq_nm_smooth / 1.35581795
 
-    plt.figure()
-    plt.xlim(5000, 14000)
-    plt.ylim(0, 100)
-    plt.plot(rpm_smooth, tq_lbft_smooth, label="Torque (from engine_torque_from_rpm)", color="C0")
-    plt.scatter(rpms_base, tq_lbft_base, color="C1", label="Input map points")
-    plt.xlabel("Engine speed [rpm]")
-    plt.ylabel("Wheel torque [lb·ft]")
-    plt.title("Input Wheel Torque Map (via engine_torque_from_rpm)")
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+    ax.set_xlim(5000, 14000)
+    ax.set_ylim(0, 100)
+    ax.plot(rpm_smooth, tq_lbft_smooth, label="Torque (from engine_torque_from_rpm)", color="C0")
+    ax.scatter(rpms_base, tq_lbft_base, color="C1", label="Input map points")
+    ax.set_xlabel("Engine speed [rpm]")
+    ax.set_ylabel("Wheel torque [lb·ft]")
+    ax.set_title("Input Wheel Torque Map (via engine_torque_from_rpm)")
+    ax.grid(True)
+    ax.legend()
 
-def plot_SD_FD_curves():
-    # small sweep over final drive ratios and shift delay times
-    plt.figure()
-
+def plot_SD_FD_curves(ax):
+    """Plot multiple FD curves for different shift delays into ax."""
     fds = np.linspace(2, 4.5, 20)
-    shift_delays = np.linspace(0.09, 1, 5)
+    shift_delays = np.linspace(0.09, 1.0, 5)
 
     for sd in shift_delays:
         times = []
         for fd in fds:
             res_fd = simulate_run(final_drive=fd, shift_delay=sd)
-            times.append(res_fd['t_final'])
-        plt.plot(times, fds, 'k')
+            times.append(res_fd["t_final"])
+        ax.plot(times, fds, label=f"SD={sd*1000:.0f} ms")
 
-    res = simulate_run(FINAL_DRIVE, SHIFT_DELAY)
-    plt.plot(res["t"][-1], FINAL_DRIVE, 'or')
-    res = simulate_run(FINAL_DRIVE_NEW, SHIFT_DELAY)
-    plt.plot(res["t"][-1], FINAL_DRIVE_NEW, 'og')
-    res = simulate_run(3.182, SHIFT_DELAY)
-    plt.plot(res["t"][-1], 3.182, '*b')
-    res = simulate_run(2.917, SHIFT_DELAY)
-    plt.plot(res["t"][-1], 2.917, '*c')
+    # Highlight specific FD values at nominal SHIFT_DELAY
+    for fd, color, marker in [
+        (FINAL_DRIVE, "r", "o"),
+        (FINAL_DRIVE_NEW, "g", "o"),
+        (3.182, "b", "*"),
+        (2.917, "c", "*"),
+    ]:
+        res = simulate_run(fd, SHIFT_DELAY)
+        ax.plot(res["t_final"], fd, marker + color)
 
-    plt.ylabel("Final drive ratio")
-    plt.ylim(2, 4.5)
-    plt.xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
-    plt.xlim(3.5, 6)
-    plt.grid(True)
-    plt.title(f"Shift Delay Time Effect on Final Drive Ratio")
-    plt.show()
+    ax.set_ylabel("Final drive ratio")
+    ax.set_ylim(2, 4.5)
+    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
+    ax.set_xlim(3.5, 6)
+    ax.grid(True)
+    ax.set_title("Shift delay effect on final drive")
+    ax.legend()
 
-def plot_FD_curves():
+def plot_FD_curves(ax, shift_delay):
+    """Plot FD sweep into the provided Axes ax."""
     fds = np.linspace(2, 4.5, 40)
     times = []
-    plt.figure()
 
     for fd in fds:
-        res_fd = simulate_run(fd, SHIFT_DELAY)
-        times.append(res_fd['t_final'])
-    plt.plot(times, fds, 'k')
-    
-    res = simulate_run(FINAL_DRIVE, SHIFT_DELAY)
-    plt.plot(res["t"][-1], FINAL_DRIVE, 'or')
-    res = simulate_run(FINAL_DRIVE_NEW, SHIFT_DELAY)
-    plt.plot(res["t"][-1], FINAL_DRIVE_NEW, 'og')
-    res = simulate_run(3.182, SHIFT_DELAY)
-    plt.plot(res["t"][-1], 3.182, '*b')
-    res = simulate_run(2.917, SHIFT_DELAY)
-    plt.plot(res["t"][-1], 2.917, '*c')
+        res_fd = simulate_run(fd, shift_delay)
+        times.append(res_fd["t_final"])
 
-    plt.ylabel("Final drive ratio")
-    plt.ylim(2, 4.5)
-    plt.xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
-    plt.xlim(3.5, 6)
-    plt.grid(True)
-    plt.title(f"Optimized Final Drive Ratios for SD of {SHIFT_DELAY*1000} ms")
-    plt.show()
+    ax.plot(times, fds, "k", label="FD sweep")
+
+    # Highlight specific FD choices as before
+    for fd, color, marker in [
+        (FINAL_DRIVE, "r", "o"),
+        (FINAL_DRIVE_NEW, "g", "o"),
+        (3.182, "b", "*"),
+        (2.917, "c", "*"),
+    ]:
+        res = simulate_run(fd, shift_delay)
+        ax.plot(res["t_final"], fd, marker + color)
+
+    ax.set_ylabel("Final drive ratio")
+    ax.set_ylim(2, 4.5)
+    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
+    ax.set_xlim(3.5, 6)
+    ax.grid(True)
+    ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {shift_delay*1000:.0f} ms")
 
 if __name__ == "__main__":
     # Single run with current parameters
     res = simulate_run(FINAL_DRIVE, SHIFT_DELAY)
     #print_time_summary(res)
-    #print_distance_summary(res)
+    print_distance_summary(res)
     #plot_results(res)
     #plot_torque_curve()
     #plot_SD_FD_curves()
-    plot_FD_curves()
+    #plot_FD_curves()
 
 
