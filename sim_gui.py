@@ -21,6 +21,7 @@ from sim_core import (
     KAPPA_PEAK,
     MU_SLIDE,
     TARGET_DISTANCE,
+    carInfo
 )
 
 def setup_graph(ax):
@@ -123,10 +124,19 @@ class FSAESimApp:
 
     def run_plot(self, initial: bool = False):
         """Read parameters, choose plot mode, and draw the appropriate graph."""
+        
+        car = carInfo()
+        
         # Parse parameters
         try:
-            fd = float(self.fd_var.get())
-            sd = float(self.sd_var.get())
+            car.fd1 = float(self.fd_var.get())
+            car.sd = float(self.sd_var.get())
+            car.mass = float(self.m_var.get())
+            car.cd = float(self.cd_var.get())
+            car.af = float(self.af_var.get())
+            car.mu_peak = float(self.mup_var.get())
+            car.kappa_peak = float(self.kp_var.get())
+            car.mu_slide = float(self.mus_var.get())
         except ValueError:
             messagebox.showerror("Input error", "Please enter numeric values for final drive and shift delay.")
             return
@@ -151,7 +161,7 @@ class FSAESimApp:
                 ax3 = self.fig.add_subplot(414, sharex=ax0)
                 setup_graph(ax3)
 
-                res = simulate_run(final_drive=fd, shift_delay=sd)
+                res = simulate_run(car)
 
                 plot_results([ax0, ax1, ax2, ax3], res)
 
@@ -171,13 +181,13 @@ class FSAESimApp:
                 )
             elif mode == "fd_sweep":
                 # Plot FD curves on this Axes for a fixed shift delay
-                plot_FD_curves(ax0, sd)
+                plot_FD_curves(ax0, car)
                 ax0.set_title(
-                    "Final drive sweep (shift delay = {:.0f} ms)".format(sd * 1000.0)
+                    "Final drive sweep (shift delay = {:.0f} ms)".format(car.sd * 1000.0)
                 )
             elif mode == "fd_sd_sweep":
                 # Plot FD & shift delay sweep on this Axes
-                plot_SD_FD_curves(ax0)
+                plot_SD_FD_curves(ax0, car)
                 ax0.set_title("Final drive & shift delay sweep")
             elif mode == "tourque_curve":
                 # plot wheel tourque

@@ -81,6 +81,29 @@ TARGET_DISTANCE = 75.0   # [m] acceleration event distance (FSAE-style)
 TARGET_SPEED_KMH = 100.0           # [km/h] target speed
 TARGET_SPEED_MS = TARGET_SPEED_KMH / 3.6  # [m/s]
 
+class carInfo:
+    def __init__(self, 
+                 mass = M_VEHICLE, cr = CR, tireRad = R_TIRE, 
+                 cd = CD, af = A_FRONTAL, mu_peak = MU_PEAK, 
+                 kappa_peak = KAPPA_PEAK, mu_slide = MU_SLIDE, 
+                 drag_c = DRAG_COEFF, fd1 = FINAL_DRIVE, 
+                 fd2 = FINAL_DRIVE_NEW, sd = SHIFT_DELAY):
+        self.mass = mass
+        self.cr = cr
+        self.tireRad = tireRad
+        self.cd = cd
+        self.af = af
+        self.mu_peak = mu_peak
+        self.kappa_peak = kappa_peak
+        self.mu_slide = mu_slide
+        self.drag_c = drag_c
+        self.n_driven = self.mass * G
+
+        self.fd1 = fd1
+        self.fd2 = fd2
+
+        self.sd = sd
+
 def wheel_torque_from_rpm(rpm: float) -> float:
     """
     Return wheel torque [N·m] at a given engine speed [rpm],
@@ -100,30 +123,30 @@ def wheel_torque_from_rpm(rpm: float) -> float:
     # Convert to N·m for the rest of the model
     return tq_lbft * 1.35581795
 
-def tire_mu_from_slip(kappa: float) -> float:
+def tire_mu_from_slip(kappa: float, carInfo) -> float:
     """
     Very simple longitudinal mu(kappa) curve.
     kappa > 0 for traction; curve rises to a peak then falls slightly.
     """
     kappa = max(kappa, 0.0)
 
-    if kappa <= KAPPA_PEAK:
+    if kappa <= carInfo.kappa_peak:
         # Linear build-up to peak
-        return MU_PEAK * (kappa / KAPPA_PEAK)
+        return carInfo.mu_peak * (kappa / carInfo.kappa_peak)
     else:
         # Exponential decay toward slide friction
-        decay = np.exp(-(kappa - KAPPA_PEAK) / 0.2)
-        return MU_SLIDE + (MU_PEAK - MU_SLIDE) * decay
+        decay = np.exp(-(kappa - carInfo.kappa_peak) / 0.2)
+        return carInfo.mu_slide + (carInfo.mu_peak - carInfo.mu_slide) * decay
 
-def traction_limited_force(F_drive_ideal: float, normal_load: float, kappa: float) -> float:
+def traction_limited_force(F_drive_ideal: float, kappa: float, carInfo) -> float:
     """
     Traction limit using a simple mu(kappa) curve.
     """
-    mu = tire_mu_from_slip(kappa)
-    F_max = mu * normal_load
+    mu = tire_mu_from_slip(kappa, carInfo)
+    F_max = mu * carInfo.n_driven
     return float(np.clip(F_drive_ideal, -F_max, F_max))
 
-def simulate_run(final_drive: float, shift_delay: float):
+def simulate_run(carInfo):
     deltaT = 0.0
     velocity = 0.0
     deltaX = 0.0
@@ -144,7 +167,7 @@ def simulate_run(final_drive: float, shift_delay: float):
     while deltaX < TARGET_DISTANCE and deltaT < T_MAX:
     #while velocity < TARGET_SPEED_MS and deltaT < T_MAX:
         # Wheel speed from vehicle speed
-        omega_w = velocity / R_TIRE  # [rad/s]
+        omega_w = velocity / carInfo.tireRad  # [rad/s]
         gear_ratio = GEAR_RATIOS[gear]
 
         if deltaT < LAUNCH_DURATION:
@@ -152,7 +175,7 @@ def simulate_run(final_drive: float, shift_delay: float):
             engine_rpm = np.clip(ENGINE_LAUNCH_RPM, ENGINE_IDLE_RPM, ENGINE_REDLINE_RPM)
         else:
             # After launch: fully coupled engine–wheel kinematics
-            engine_rad_per_s = omega_w * PRIMARY_REDUCTION * gear_ratio * final_drive
+            engine_rad_per_s = omega_w * PRIMARY_REDUCTION * gear_ratio * carInfo.fd1
             engine_rpm = engine_rad_per_s * 60.0 / (2.0 * np.pi)
             engine_rpm = np.clip(engine_rpm, ENGINE_IDLE_RPM, ENGINE_REDLINE_RPM)
 
@@ -162,7 +185,7 @@ def simulate_run(final_drive: float, shift_delay: float):
             if shift_rpm is not None and engine_rpm >= shift_rpm and gear < max(GEAR_RATIOS.keys()):
                 # Start shift
                 shifting = True
-                shift_time_left = shift_delay
+                shift_time_left = carInfo.sd
                 next_gear = gear + 1
 
         # Compute drive force
@@ -178,10 +201,10 @@ def simulate_run(final_drive: float, shift_delay: float):
 
             # Driveline torque to wheel
             gear_ratio = GEAR_RATIOS[gear]
-            T_in = T_e * PRIMARY_REDUCTION * gear_ratio * final_drive
+            T_in = T_e * PRIMARY_REDUCTION * gear_ratio * carInfo.fd1
 
             # Ideal wheel thrust
-            F_drive_ideal = T_in / R_TIRE
+            F_drive_ideal = T_in / carInfo.tireRad
 
             # Longitudinal slip ratio (simple definition, avoid div-by-zero)
             if velocity < 0.1:  # near standstill, approximate high slip
@@ -190,14 +213,14 @@ def simulate_run(final_drive: float, shift_delay: float):
                 kappa = (omega_w - velocity) / max(velocity, 1e-3)
 
             # Apply simple traction limit
-            F_drive = traction_limited_force(F_drive_ideal, N_DRIVEN, kappa)
+            F_drive = traction_limited_force(F_drive_ideal, kappa, carInfo)
 
         # Resistive forces
-        F_drag = DRAG_COEFF * velocity**2
-        F_roll = CR * M_VEHICLE * G
+        F_drag = carInfo.cd * velocity**2
+        F_roll = carInfo.cr * carInfo.mass * G
 
         # Longitudinal acceleration
-        a_x = (F_drive - F_drag - F_roll) / M_VEHICLE
+        a_x = (F_drive - F_drag - F_roll) / carInfo.mass
 
         # Integrate state (simple Euler)
         velocity = velocity + a_x * DT
@@ -226,8 +249,8 @@ def simulate_run(final_drive: float, shift_delay: float):
         "t_final": deltaT,
         "x_final": deltaX,
         "v_final": velocity,
-        "final_drive": final_drive,
-        "shift_delay": shift_delay,
+        "final_drive": carInfo.fd1,
+        "shift_delay": carInfo.sd,
     }
     return results
 
@@ -300,43 +323,14 @@ def plot_torque_curve(ax):
     ax.grid(True)
     ax.legend()
 
-def plot_SD_FD_curves(ax):
-    """Plot multiple FD curves for different shift delays into ax."""
-    fds = np.linspace(2, 4.5, 20)
-    shift_delays = np.linspace(0.09, 1.0, 5)
-
-    for sd in shift_delays:
-        times = []
-        for fd in fds:
-            res_fd = simulate_run(final_drive=fd, shift_delay=sd)
-            times.append(res_fd["t_final"])
-        ax.plot(times, fds, label=f"SD={sd*1000:.0f} ms")
-
-    # Highlight specific FD values at nominal SHIFT_DELAY
-    for fd, color, marker in [
-        (FINAL_DRIVE, "r", "o"),
-        (FINAL_DRIVE_NEW, "g", "o"),
-        (3.182, "b", "*"),
-        (2.917, "c", "*"),
-    ]:
-        res = simulate_run(fd, SHIFT_DELAY)
-        ax.plot(res["t_final"], fd, marker + color)
-
-    ax.set_ylabel("Final drive ratio")
-    ax.set_ylim(2, 4.5)
-    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
-    ax.set_xlim(3.5, 6)
-    ax.grid(True)
-    ax.set_title("Shift delay effect on final drive")
-    ax.legend()
-
-def plot_FD_curves(ax, shift_delay):
+def plot_FD_curves(ax, carInfo):
     """Plot FD sweep into the provided Axes ax."""
     fds = np.linspace(2, 4.5, 40)
     times = []
 
     for fd in fds:
-        res_fd = simulate_run(fd, shift_delay)
+        carInfo.fd1 = fd
+        res_fd = simulate_run(carInfo)
         times.append(res_fd["t_final"])
 
     ax.plot(times, fds, "k", label="FD sweep")
@@ -348,7 +342,8 @@ def plot_FD_curves(ax, shift_delay):
         (3.182, "b", "*"),
         (2.917, "c", "*"),
     ]:
-        res = simulate_run(fd, shift_delay)
+        carInfo.fd1 = fd
+        res = simulate_run(carInfo)
         ax.plot(res["t_final"], fd, marker + color)
 
     ax.set_ylabel("Final drive ratio")
@@ -356,5 +351,37 @@ def plot_FD_curves(ax, shift_delay):
     ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
     ax.set_xlim(3.5, 6)
     ax.grid(True)
-    ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {shift_delay*1000:.0f} ms")
+    ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {carInfo.sd*1000:.0f} ms")
 
+def plot_SD_FD_curves(ax, carInfo):
+    """Plot multiple FD curves for different shift delays into ax."""
+    fds = np.linspace(2, 4.5, 20)
+    shift_delays = np.linspace(0.09, 1.0, 5)
+
+    # Highlight specific FD values at nominal SHIFT_DELAY
+    for fd, color, marker in [
+        (FINAL_DRIVE, "r", "o"),
+        (FINAL_DRIVE_NEW, "g", "o"),
+        (3.182, "b", "*"),
+        (2.917, "c", "*"),
+    ]:
+        carInfo.fd1 = fd
+        res = simulate_run(carInfo)
+        ax.plot(res["t_final"], fd, marker + color)
+
+    for sd in shift_delays:
+        times = []
+        carInfo.sd = sd
+        for fd in fds:
+            carInfo.fd1 = fd
+            res_fd = simulate_run(carInfo)
+            times.append(res_fd["t_final"])
+        ax.plot(times, fds, label=f"SD={sd*1000:.0f} ms")
+
+    ax.set_ylabel("Final drive ratio")
+    ax.set_ylim(2, 4.5)
+    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
+    ax.set_xlim(3.5, 6)
+    ax.grid(True)
+    ax.set_title("Shift delay effect on final drive")
+    ax.legend()
