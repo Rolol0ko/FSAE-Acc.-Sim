@@ -1,4 +1,6 @@
 # sim_gui.py
+import os, sys
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -42,9 +44,14 @@ class FSAESimApp:
         self.master = master
         master.title("FSAE Acceleration Simulator")
 
-        style = ttk.Style(master)
-        root.tk.call('source', 'black.tcl')
-        style.theme_use("black")
+        filename = "black.tcl"
+        if hasattr(sys, "_MEIPASS"):      # running from PyInstaller bundle
+            filename = os.path.join(sys._MEIPASS, filename) #_MEIPASS only exists when program is built with pyinstaller
+        else:
+            filename = os.path.abspath(filename)  # running from source
+        
+        master.tk.call('source', filename)
+        ttk.Style(master).theme_use("black")
         
         # ----- Left: controls -----
         controls = ttk.Frame(master, padding=5)
