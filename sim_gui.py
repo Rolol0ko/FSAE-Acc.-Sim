@@ -14,8 +14,13 @@ from sim_core import (
     plot_results,
     FINAL_DRIVE,
     SHIFT_DELAY,
+    M_VEHICLE,
+    CD,
+    A_FRONTAL,
+    MU_PEAK,
+    KAPPA_PEAK,
+    MU_SLIDE,
     TARGET_DISTANCE,
-    TARGET_SPEED_KMH,
 )
 
 def setup_graph(ax):
@@ -24,6 +29,12 @@ def setup_graph(ax):
     ax.set_xlabel('', color='#ffffff')
     ax.tick_params(labelcolor='#ffffff', color='#ffffff', grid_color='#ffffff')
     ax.set_title('', color='#ffffff')
+
+def make_input(ttk, self, parent_frameA, parent_frameB, label, variable):
+    ttk.Label(parent_frameA, text=f"{label}").pack(anchor="w", pady=(0, 3.5))
+    self.var = tk.StringVar(value=f"{variable:.3f}")
+    ttk.Entry(parent_frameB, textvariable=self.var, width=10).pack(anchor="w", pady=(0, 4))
+    return self.var
 
 class FSAESimApp:
     def __init__(self, master: tk.Tk):
@@ -41,56 +52,63 @@ class FSAESimApp:
         # Parameters
         ttk.Label(controls, text="Parameters", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
 
-        # Final drive
-        ttk.Label(controls, text="Final drive ratio").pack(anchor="w")
-        self.fd_var = tk.StringVar(value=f"{FINAL_DRIVE:.3f}")
-        ttk.Entry(controls, textvariable=self.fd_var, width=10).pack(anchor="w", pady=(0, 4))
+        parameter_labels = ttk.Frame(controls)
+        parameter_labels.pack(side=tk.LEFT, fill=tk.BOTH)
+        
+        parameter_inputs = ttk.Frame(controls)
+        parameter_inputs.pack(side=tk.RIGHT, fill=tk.BOTH)
 
-        # Shift delay
-        ttk.Label(controls, text="Shift delay [s]").pack(anchor="w")
-        self.sd_var = tk.StringVar(value=f"{SHIFT_DELAY:.3f}")
-        ttk.Entry(controls, textvariable=self.sd_var, width=10).pack(anchor="w", pady=(0, 8))
+        # List of parameters labels and inputs
+        self.fd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Final drive ratio [-]", FINAL_DRIVE)
+        self.sd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Shift delay [s]", SHIFT_DELAY)
+        self.m_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Car Mass [kg]", M_VEHICLE)
+        self.cd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Drag Coeffiecent [-]", CD)
+        self.af_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Frontal Area [m^2]", A_FRONTAL)
+        self.mup_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak MU [-]", MU_PEAK)
+        self.kp_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak Kappa [-]", KAPPA_PEAK)
+        self.mus_var = make_input(ttk, self, parameter_labels, parameter_inputs, "MU Slide [-]", MU_SLIDE)
 
+        plot_controls = ttk.Frame(controls)
+        plot_controls.pack(side=tk.BOTTOM, fill=tk.BOTH)
         # Plot mode
-        ttk.Label(controls, text="Graph type", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        ttk.Label(plot_controls, text="Graph type", font=("Segoe UI", 10, "bold")).pack(anchor="center", pady=(8, 2))
         self.plot_mode = tk.StringVar(value="single")
 
         ttk.Radiobutton(
-            controls,
-            text="Single run (0 → {:.0f} km/h)".format(TARGET_SPEED_KMH),
+            plot_controls,
+            text="Single run (75 m)",
             value="single",
             variable=self.plot_mode,
         ).pack(anchor="w")
         ttk.Radiobutton(
-            controls,
+            plot_controls,
             text="FD sweep (fixed shift delay)",
             value="fd_sweep",
             variable=self.plot_mode,
         ).pack(anchor="w")
         ttk.Radiobutton(
-            controls,
+            plot_controls,
             text="FD & shift delay sweep",
             value="fd_sd_sweep",
             variable=self.plot_mode,
         ).pack(anchor="w")
         ttk.Radiobutton(
-            controls,
+            plot_controls,
             text="Tourque Curve",
             value="tourque_curve",
             variable=self.plot_mode,
         ).pack(anchor="w")
 
         # Action buttons
-        ttk.Button(controls, text="Plot", command=self.run_plot).pack(anchor="center", pady=(12, 4))
-        ttk.Button(controls, text="Quit", command=master.destroy).pack(anchor="center", pady=(0, 4))
+        ttk.Button(plot_controls, text="Plot", command=self.run_plot).pack(anchor="center", pady=(12, 4))
+        ttk.Button(plot_controls, text="Quit", command=master.destroy).pack(anchor="center", pady=(0, 4))
 
         # Info label
         self.info_label = ttk.Label(
-            controls,
-            text=f"Target distance: {TARGET_DISTANCE:.0f} m\nTarget speed: {TARGET_SPEED_KMH:.0f} km/h",
-            justify="left",
+            plot_controls,
+            text=f"Target distance: {TARGET_DISTANCE:.0f} m"
         )
-        self.info_label.pack(anchor="w", pady=(10, 0))
+        self.info_label.pack(anchor="center", pady=(10, 0))
 
         # ----- Right: plot area -----
         plot_frame = ttk.Frame(master, padding=1)
@@ -139,8 +157,8 @@ class FSAESimApp:
 
                 # Simple text summary in the corner
                 summary = (
-                    "t_final = {:.3f} s\nv_final = {:.1f} km/h\nx_final = {:.1f} m"
-                    .format(res["t_final"], res["v_final"] * 3.6, res["x_final"])
+                    "Final Time = {:.3f} s\nFinal Velocity = {:.1f} km/h"
+                    .format(res["t_final"], res["v_final"] * 3.6)
                 )
 
                 ax0.text(
@@ -149,7 +167,7 @@ class FSAESimApp:
                     va="top",
                     ha="left",
                     fontsize=9,
-                    bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
+                    bbox=dict(boxstyle="round", facecolor="white", alpha=0.6),
                 )
             elif mode == "fd_sweep":
                 # Plot FD curves on this Axes for a fixed shift delay

@@ -123,7 +123,7 @@ def traction_limited_force(F_drive_ideal: float, normal_load: float, kappa: floa
     F_max = mu * normal_load
     return float(np.clip(F_drive_ideal, -F_max, F_max))
 
-def simulate_run(final_drive: float = FINAL_DRIVE, shift_delay: float = SHIFT_DELAY):
+def simulate_run(final_drive: float, shift_delay: float):
     deltaT = 0.0
     velocity = 0.0
     deltaX = 0.0
@@ -341,7 +341,7 @@ def plot_FD_curves(ax, shift_delay):
 
     ax.plot(times, fds, "k", label="FD sweep")
 
-    # Highlight specific FD choices as before
+    # specific FD choices
     for fd, color, marker in [
         (FINAL_DRIVE, "r", "o"),
         (FINAL_DRIVE_NEW, "g", "o"),
@@ -357,3 +357,4 @@ def plot_FD_curves(ax, shift_delay):
     ax.set_xlim(3.5, 6)
     ax.grid(True)
     ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {shift_delay*1000:.0f} ms")
+
