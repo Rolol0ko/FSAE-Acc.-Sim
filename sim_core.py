@@ -357,15 +357,3 @@ def plot_FD_curves(ax, shift_delay):
     ax.set_xlim(3.5, 6)
     ax.grid(True)
     ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {shift_delay*1000:.0f} ms")
-
-if __name__ == "__main__":
-    # Single run with current parameters
-    res = simulate_run(FINAL_DRIVE, SHIFT_DELAY)
-    #print_time_summary(res)
-    print_distance_summary(res)
-    #plot_results(res)
-    #plot_torque_curve()
-    #plot_SD_FD_curves()
-    #plot_FD_curves()
-
-

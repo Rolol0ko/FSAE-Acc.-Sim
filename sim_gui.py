@@ -18,20 +18,19 @@ from sim_core import (
     TARGET_SPEED_KMH,
 )
 
+def setup_graph(ax):
+    ax.set_facecolor('#424242')
+    ax.set_ylabel('', color='#ffffff')
+    ax.set_xlabel('', color='#ffffff')
+
 class FSAESimApp:
     def __init__(self, master: tk.Tk):
         self.master = master
         master.title("FSAE Acceleration Simulator")
-        master.config(background="#26242f")
-        
-        '''
+
         style = ttk.Style(master)
-        style.configure("TFrame", background="#26242f")
-        style.configure("TLabel", background="#26242f", foreground="white")
-        style.configure("TButton", background="#26242f")
-        style.configure("TEntry", background="#26242f")
-        style.configure("TFigure", background="#26242f")
-        '''
+        root.tk.call('source', 'black.tcl')
+        style.theme_use("black")
         
         # ----- Left: controls -----
         controls = ttk.Frame(master, padding=5)
@@ -95,7 +94,7 @@ class FSAESimApp:
         plot_frame = ttk.Frame(master, padding=1)
         plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        self.fig = Figure(figsize=(7, 5), dpi=100, tight_layout=True)
+        self.fig = Figure(facecolor="#424242", figsize=(7, 5), dpi=100, tight_layout=True)
         self.canvas = FigureCanvasTkAgg(self.fig, master=plot_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
@@ -118,15 +117,20 @@ class FSAESimApp:
         # Clear figure and create a new Axes
         self.fig.clear()
         ax0 = self.fig.add_subplot(111)
-
+        setup_graph(ax0)
+        
         try:
             if mode == "single":
                 # Run a single simulation and plot speed vs time
                 self.fig.clear()
                 ax0 = self.fig.add_subplot(411, sharex=ax0)
+                setup_graph(ax0)
                 ax1 = self.fig.add_subplot(412, sharex=ax0)
+                setup_graph(ax1)
                 ax2 = self.fig.add_subplot(413, sharex=ax0)
+                setup_graph(ax2)
                 ax3 = self.fig.add_subplot(414, sharex=ax0)
+                setup_graph(ax3)
                 
                 res = simulate_run(final_drive=fd, shift_delay=sd)
 
