@@ -46,7 +46,7 @@ class FSAESimApp:
 
         filename = "black.tcl"
         if hasattr(sys, "_MEIPASS"):      # running from PyInstaller bundle
-            filename = os.path.join(sys._MEIPASS, filename) #_MEIPASS only exists when program is built with pyinstaller
+            filename = os.path.join(sys._MEIPASS, filename) # type: ignore #_MEIPASS only exists when program is built with pyinstaller
         else:
             filename = os.path.abspath(filename)  # running from source
         
@@ -67,6 +67,13 @@ class FSAESimApp:
         parameter_inputs.pack(side=tk.RIGHT, fill=tk.BOTH)
 
         # List of parameters labels and inputs
+        #ttk.Label(parameter_labels, text="Final drive ratio [-]").pack(anchor="w", pady=(0, 3.5))
+        #self.big_ratio = tk.StringVar(value=f"{41}")
+        #self.little_ratio = tk.StringVar(value=f"{11}")
+        #self.fd_var = float(self.big_ratio.get()) / float(self.little_ratio.get())
+        #ttk.Entry(parameter_inputs, textvariable=self.big_ratio, width=10).pack(anchor="w", pady=(0, 4))
+        #ttk.Entry(parameter_inputs, textvariable=self.little_ratio, width=10).pack(anchor="w", pady=(0, 4))
+
         self.fd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Final drive ratio [-]", FINAL_DRIVE)
         self.sd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Shift delay [s]", SHIFT_DELAY)
         self.m_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Car Mass [kg]", M_VEHICLE)
