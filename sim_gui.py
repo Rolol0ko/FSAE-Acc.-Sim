@@ -22,6 +22,8 @@ def setup_graph(ax):
     ax.set_facecolor('#424242')
     ax.set_ylabel('', color='#ffffff')
     ax.set_xlabel('', color='#ffffff')
+    ax.tick_params(labelcolor='#ffffff', color='#ffffff', grid_color='#ffffff')
+    ax.set_title('', color='#ffffff')
 
 class FSAESimApp:
     def __init__(self, master: tk.Tk):
@@ -94,12 +96,12 @@ class FSAESimApp:
         plot_frame = ttk.Frame(master, padding=1)
         plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        self.fig = Figure(facecolor="#424242", figsize=(7, 5), dpi=100, tight_layout=True)
+        self.fig = Figure(facecolor="#424242", layout='tight', edgecolor='#ffffff')
         self.canvas = FigureCanvasTkAgg(self.fig, master=plot_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         # Do an initial plot
-        self.run_plot(initial=True)
+        self.run_plot()
 
     def run_plot(self, initial: bool = False):
         """Read parameters, choose plot mode, and draw the appropriate graph."""
@@ -108,8 +110,7 @@ class FSAESimApp:
             fd = float(self.fd_var.get())
             sd = float(self.sd_var.get())
         except ValueError:
-            if not initial:
-                messagebox.showerror("Input error", "Please enter numeric values for final drive and shift delay.")
+            messagebox.showerror("Input error", "Please enter numeric values for final drive and shift delay.")
             return
 
         mode = self.plot_mode.get()
@@ -131,17 +132,17 @@ class FSAESimApp:
                 setup_graph(ax2)
                 ax3 = self.fig.add_subplot(414, sharex=ax0)
                 setup_graph(ax3)
-                
+
                 res = simulate_run(final_drive=fd, shift_delay=sd)
 
                 plot_results([ax0, ax1, ax2, ax3], res)
-                
+
                 # Simple text summary in the corner
                 summary = (
                     "t_final = {:.3f} s\nv_final = {:.1f} km/h\nx_final = {:.1f} m"
                     .format(res["t_final"], res["v_final"] * 3.6, res["x_final"])
                 )
-                
+
                 ax0.text(
                     0.02, 0.98, summary,
                     transform=ax0.transAxes,

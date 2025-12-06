@@ -257,22 +257,22 @@ def plot_results(axes, results):
     ax0, ax1, ax2, ax3 = axes
 
     # Speed
-    ax0.plot(t, v * 3.6, label="Speed")
+    ax0.plot(t, v * 3.6, label="Speed", lw=3)
     ax0.set_ylabel("Speed [km/h]")
     ax0.grid(True)
 
     # Acceleration in Gs
-    ax1.plot(t, a / G, label="Accel", color="C1")  # G = 9.81 defined at top
+    ax1.plot(t, a / G, label="Accel", color="C1", lw=3)  # G = 9.81 defined at top
     ax1.set_ylabel("a_x [G]")
     ax1.grid(True)
     
     # Engine RPM
-    ax2.plot(t, rpm, label="Engine RPM", color="C3")
+    ax2.plot(t, rpm, label="Engine RPM", color="C3", lw=3)
     ax2.set_ylabel("RPM")
     ax2.grid(True)
 
     # Gear
-    ax3.step(t, gear, where="post", label="Gear", color="C2")
+    ax3.step(t, gear, where="post", label="Gear", color="C2", lw=3)
     ax3.set_ylabel("Gear")
     ax3.set_xlabel("Time [s]")
     ax3.grid(True)
