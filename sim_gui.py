@@ -20,9 +20,6 @@ from sim_core import (
     M_VEHICLE,
     CD,
     A_FRONTAL,
-    MU_PEAK,
-    KAPPA_PEAK,
-    MU_SLIDE,
     TARGET_DISTANCE,
     carInfo
 )
@@ -35,7 +32,7 @@ def setup_graph(ax):
     ax.set_title('', color='#ffffff')
 
 def make_input(ttk, self, parent_frameA, parent_frameB, label, variable):
-    ttk.Label(parent_frameA, text=f"{label}").pack(anchor="w", pady=(0, 3.5))
+    ttk.Label(parent_frameA, text=f"{label}").pack(anchor="w", pady=(0, 3.5), fill=tk.BOTH)
     self.var = tk.StringVar(value=f"{variable:.3f}")
     ttk.Entry(parent_frameB, textvariable=self.var, width=10).pack(anchor="w", pady=(0, 4))
     return self.var
@@ -56,10 +53,10 @@ class FSAESimApp:
         
         # ----- Left: controls -----
         controls = ttk.Frame(master, padding=5)
-        controls.pack(side=tk.LEFT, fill=tk.Y)
+        controls.pack(side=tk.LEFT, fill=tk.BOTH)
 
         # Parameters
-        ttk.Label(controls, text="Parameters", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(controls, text="Car Parameters", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
 
         parameter_labels = ttk.Frame(controls)
         parameter_labels.pack(side=tk.LEFT, fill=tk.BOTH)
@@ -67,20 +64,22 @@ class FSAESimApp:
         parameter_inputs = ttk.Frame(controls)
         parameter_inputs.pack(side=tk.RIGHT, fill=tk.BOTH)
 
-        # List of parameters labels and inputs
-        #ttk.Label(parameter_labels, text="Final drive ratio [-]").pack(anchor="w", pady=(0, 3.5))
-        #self.big_ratio = tk.StringVar(value=f"{41}")
-        #self.little_ratio = tk.StringVar(value=f"{11}")
-        #self.fd_var = float(self.big_ratio.get()) / float(self.little_ratio.get())
-        #ttk.Entry(parameter_inputs, textvariable=self.big_ratio, width=10).pack(anchor="w", pady=(0, 4))
-        #ttk.Entry(parameter_inputs, textvariable=self.little_ratio, width=10).pack(anchor="w", pady=(0, 4))
+        #self.fd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Final drive ratio [-]", FINAL_DRIVE)
+        ttk.Label(parameter_labels, text="Final drive ratio [-]").pack(anchor="w", pady=(0, 3.5))
 
-        self.fd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Final drive ratio [-]", FINAL_DRIVE)
+        self.big_ratio = tk.StringVar(value=f"{41}")    # Rear sprocket teeth
+        self.little_ratio = tk.StringVar(value=f"{11}") # Front sprocket teeth
+        fd_inputs = ttk.Frame(parameter_inputs)
+        fd_inputs.pack(side=tk.TOP, fill=tk.BOTH)
+        ttk.Entry(fd_inputs, textvariable=self.big_ratio, width=10).pack(anchor="e", pady=(0, 4), side=tk.RIGHT, fill=tk.BOTH)
+        ttk.Label(fd_inputs, text=":").pack(anchor="e", pady=(0, 3.5), side=tk.RIGHT, fill=tk.BOTH)
+        ttk.Entry(fd_inputs, textvariable=self.little_ratio, width=10).pack(anchor="e", pady=(0, 4), side=tk.RIGHT, fill=tk.BOTH)
+        
         self.sd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Shift delay [s]", SHIFT_DELAY)
         self.m_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Car Mass [kg]", M_VEHICLE)
         self.cd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Drag Coeffiecent [-]", CD)
         self.af_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Frontal Area [m^2]", A_FRONTAL)
-        # old frictioon model
+        # old friction model
         #self.mup_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak MU [-]", MU_PEAK)
         #self.kp_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak Slip Ratio [%]", KAPPA_PEAK * 100)
         #self.mus_var = make_input(ttk, self, parameter_labels, parameter_inputs, "MU Slide [-]", MU_SLIDE)
@@ -134,7 +133,7 @@ class FSAESimApp:
         self.info_label.pack(anchor="center", pady=(10, 0))
 
         # ----- Right: plot area -----
-        plot_frame = ttk.Frame(master, padding=1)
+        plot_frame = ttk.Frame(master, padding=0.5)
         plot_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         self.fig = Figure(facecolor="#424242", layout='tight', edgecolor='#ffffff')
@@ -151,7 +150,7 @@ class FSAESimApp:
 
         # Parse parameters
         try:
-            car.fd1 = float(self.fd_var.get())
+            car.fd1 = float(self.big_ratio.get()) / float(self.little_ratio.get())
             car.sd = float(self.sd_var.get())
             car.mass = float(self.m_var.get())
             car.cd = float(self.cd_var.get())
