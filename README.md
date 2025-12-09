@@ -1,9 +1,9 @@
-# FSAE-Acc.-Sim
+# FSAE-Acceleration-Simulation 
 
-Simple and lightwieght simulation of the 75m acceleration test at FSAE events.
+Simple and lightweight simulation of the 75m acceleration test at FSAE events.
 
 Requires matplotlib, tkinter and optionally pyinstaller to build a standalone .exe
 
-pip install pyinstaller
-
-pyinstaller --onefile --add-data "black.tcl;." sim_gui.py
+```
+pyinstaller --onefile --add-data "black.tcl;." sim_gui.py'
+```
