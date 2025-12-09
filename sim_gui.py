@@ -43,10 +43,10 @@ class FSAESimApp:
         master.title("FSAE Acceleration Simulator")
 
         filename = "black.tcl"
-        if hasattr(sys, "_MEIPASS"):      # running from PyInstaller bundle
+        if hasattr(sys, "_MEIPASS"):                        # running from PyInstaller bundle
             filename = os.path.join(sys._MEIPASS, filename) # type: ignore #_MEIPASS only exists when program is built with pyinstaller
         else:
-            filename = os.path.abspath(filename)  # running from source
+            filename = os.path.abspath(filename)            # running from source
         
         master.tk.call('source', filename)
         ttk.Style(master).theme_use("black")

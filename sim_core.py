@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 # Vehicle & environment
 M_VEHICLE = 226.0       # [kg] vehicle + driver mass
@@ -349,41 +349,23 @@ def plot_tire_curve(ax, carInfo):
     ax.set_title("Friction Limited Force of Tires")
     ax.grid(True)
 
-def plot_FD_curves(ax, carInfo):
-    """Plot FD sweep into the provided Axes ax."""
-    fds = np.linspace(2, 4.5, 40)
-    times = []
+def possible_final_drives():
+    big_gears = np.linspace(35, 66, 66 - 35)
+    little_gears = np.linspace(14, 18, 81 - 14)
+    ratios = []
 
-    for fd in fds:
-        carInfo.fd1 = fd
-        res_fd = simulate_run(carInfo)
-        times.append(res_fd["t_final"])
+    for bgear in big_gears:
+        for lgear in little_gears:
+            ratio = float(bgear / lgear)
+            ratios.append(ratio)
+    ratios.sort()
+    for i in range(len(ratios)-1, -1, -1):
+        if np.abs(ratios[i] - ratios[i-1]) < 0.005:
+            del ratios[i]
 
-    ax.plot(times, fds, "k", label="FD sweep")
+    return ratios
 
-    # specific FD choices
-    for fd, color, marker in [
-        (FINAL_DRIVE, "r", "o"),
-        (FINAL_DRIVE_NEW, "g", "o"),
-        (3.182, "b", "*"),
-        (2.917, "c", "*"),
-    ]:
-        carInfo.fd1 = fd
-        res = simulate_run(carInfo)
-        ax.plot(res["t_final"], fd, marker + color)
-
-    ax.set_ylabel("Final drive ratio")
-    ax.set_ylim(2, 4.5)
-    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
-    ax.set_xlim(3.5, 6)
-    ax.grid(True)
-    ax.set_title(f"Optimized Final Drive Ratios\nshift delay = {carInfo.sd*1000:.0f} ms")
-
-def plot_SD_FD_curves(ax, carInfo):
-    """Plot multiple FD curves for different shift delays into ax."""
-    fds = np.linspace(2, 4.5, 20)
-    shift_delays = np.linspace(0.09, 1.0, 5)
-
+def highlight_fds(ax, carInfo):
     # Highlight specific FD values at nominal SHIFT_DELAY
     for fd, color, marker in [
         (FINAL_DRIVE, "r", "o"),
@@ -392,9 +374,36 @@ def plot_SD_FD_curves(ax, carInfo):
         (2.917, "c", "*"),
     ]:
         carInfo.fd1 = fd
+        carInfo.sd = SHIFT_DELAY
         res = simulate_run(carInfo)
-        ax.plot(res["t_final"], fd, marker + color)
+        ax.plot(res["t_final"], fd, marker + color, label=f"FD: {fd}")
 
+def plot_FD_curves(ax, carInfo):
+    """Plot FD sweep into the provided Axes ax."""
+    times = []
+    ratios = possible_final_drives()
+
+    for r in ratios:
+        carInfo.fd1 = r
+        res_fd = simulate_run(carInfo)
+        times.append(res_fd["t_final"])
+    ax.plot(times, ratios, "k", label="FD sweep")
+
+    highlight_fds(ax, carInfo)
+    ax.set_ylabel("Final drive ratio")
+    ax.set_ylim(2, 4.5)
+    ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
+    ax.set_xlim(3.5, 6)
+    ax.grid(True)
+    ax.set_title(f"Optimized Final Drive Ratios\nshift delay: {carInfo.sd*1000:.0f} ms")
+    ax.legend()
+
+def plot_SD_FD_curves(ax, carInfo):
+    """Plot multiple FD curves for different shift delays into ax."""
+    fds = possible_final_drives()
+    shift_delays = np.linspace(0.09, 1.0, 5)
+    sd1 = carInfo.sd
+    
     for sd in shift_delays:
         times = []
         carInfo.sd = sd
@@ -402,8 +411,10 @@ def plot_SD_FD_curves(ax, carInfo):
             carInfo.fd1 = fd
             res_fd = simulate_run(carInfo)
             times.append(res_fd["t_final"])
-        ax.plot(times, fds, label=f"SD={sd*1000:.0f} ms")
+        ax.plot(times, fds, label=f"SD: {sd*1000:.0f} ms")
 
+    carInfo.sd = sd1
+    highlight_fds(ax, carInfo)
     ax.set_ylabel("Final drive ratio")
     ax.set_ylim(2, 4.5)
     ax.set_xlabel(f"Time to {TARGET_DISTANCE:.0f} m [s]")
