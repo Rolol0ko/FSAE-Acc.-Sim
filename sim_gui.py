@@ -13,6 +13,7 @@ from sim_core import (
     plot_FD_curves,
     plot_SD_FD_curves,
     plot_torque_curve,
+    plot_tire_curve,
     plot_results,
     FINAL_DRIVE,
     SHIFT_DELAY,
@@ -79,9 +80,10 @@ class FSAESimApp:
         self.m_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Car Mass [kg]", M_VEHICLE)
         self.cd_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Drag Coeffiecent [-]", CD)
         self.af_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Frontal Area [m^2]", A_FRONTAL)
-        self.mup_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak MU [-]", MU_PEAK)
-        self.kp_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak Kappa [-]", KAPPA_PEAK)
-        self.mus_var = make_input(ttk, self, parameter_labels, parameter_inputs, "MU Slide [-]", MU_SLIDE)
+        # old frictioon model
+        #self.mup_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak MU [-]", MU_PEAK)
+        #self.kp_var = make_input(ttk, self, parameter_labels, parameter_inputs, "Peak Slip Ratio [%]", KAPPA_PEAK * 100)
+        #self.mus_var = make_input(ttk, self, parameter_labels, parameter_inputs, "MU Slide [-]", MU_SLIDE)
 
         plot_controls = ttk.Frame(controls)
         plot_controls.pack(side=tk.BOTTOM, fill=tk.BOTH)
@@ -113,6 +115,12 @@ class FSAESimApp:
             value="tourque_curve",
             variable=self.plot_mode,
         ).pack(anchor="w")
+        ttk.Radiobutton(
+            plot_controls,
+            text="Grip Curve",
+            value="grip_curve",
+            variable=self.plot_mode,
+        ).pack(anchor="w")
 
         # Action buttons
         ttk.Button(plot_controls, text="Plot", command=self.run_plot).pack(anchor="center", pady=(12, 4))
@@ -138,9 +146,9 @@ class FSAESimApp:
 
     def run_plot(self, initial: bool = False):
         """Read parameters, choose plot mode, and draw the appropriate graph."""
-        
+
         car = carInfo()
-        
+
         # Parse parameters
         try:
             car.fd1 = float(self.fd_var.get())
@@ -148,12 +156,13 @@ class FSAESimApp:
             car.mass = float(self.m_var.get())
             car.cd = float(self.cd_var.get())
             car.af = float(self.af_var.get())
-            car.mu_peak = float(self.mup_var.get())
-            car.kappa_peak = float(self.kp_var.get())
-            car.mu_slide = float(self.mus_var.get())
+            # Old friction model
+            #car.mu_peak = float(self.mup_var.get())
+            #car.kappa_peak = float(self.kp_var.get()) / 100
+            #car.mu_slide = float(self.mus_var.get())
         except ValueError:
             messagebox.showerror("Input error", "Please enter numeric values for final drive and shift delay.")
-            return
+            return None
 
         mode = self.plot_mode.get()
 
@@ -206,6 +215,8 @@ class FSAESimApp:
             elif mode == "tourque_curve":
                 # plot wheel tourque
                 plot_torque_curve(ax0)
+            elif mode == "grip_curve":
+                plot_tire_curve(ax0, car)
             else:
                 ax0.text(0.5, 0.5, "Unknown mode", transform=ax0.transAxes, ha="center", va="center")
         except Exception as e:

@@ -126,7 +126,7 @@ def wheel_torque_from_rpm(rpm: float) -> float:
 def tire_mu_from_slip(kappa: float, carInfo) -> float:
     """
     Very simple longitudinal mu(kappa) curve.
-    kappa > 0 for traction; curve rises to a peak then falls slightly.
+    Curve rises to a peak then falls slightly.
     """
     kappa = max(kappa, 0.0)
 
@@ -138,12 +138,20 @@ def tire_mu_from_slip(kappa: float, carInfo) -> float:
         decay = np.exp(-(kappa - carInfo.kappa_peak) / 0.2)
         return carInfo.mu_slide + (carInfo.mu_peak - carInfo.mu_slide) * decay
 
-def traction_limited_force(F_drive_ideal: float, kappa: float, carInfo) -> float:
+def basic_traction_limited_force(F_drive_ideal: float, kappa: float, carInfo) -> float:
     """
     Traction limit using a simple mu(kappa) curve.
     """
     mu = tire_mu_from_slip(kappa, carInfo)
     F_max = mu * carInfo.n_driven
+    return float(np.clip(F_drive_ideal, -F_max, F_max))
+
+def pacejka_traction_limited_force(F_drive_ideal: float, kappa: float, carInfo):
+    C = 5.83         # Shape Factor
+    D = 3900         # Peak Factor
+    b = 600          # Stiffness Factor B = change of stiffness with slip · Fz / (C · D)
+    E = 0.993        # Curvature Factor
+    F_max = D * np.sin(C * np.arctan(b * kappa - E * (b * kappa - np.arctan(b * kappa))))
     return float(np.clip(F_drive_ideal, -F_max, F_max))
 
 def simulate_run(carInfo):
@@ -205,7 +213,7 @@ def simulate_run(carInfo):
 
             # Ideal wheel thrust
             F_drive_ideal = T_in / carInfo.tireRad
-
+            
             # Longitudinal slip ratio (simple definition, avoid div-by-zero)
             if velocity < 0.1:  # near standstill, approximate high slip
                 kappa = 1.0
@@ -213,7 +221,7 @@ def simulate_run(carInfo):
                 kappa = (omega_w - velocity) / max(velocity, 1e-3)
 
             # Apply simple traction limit
-            F_drive = traction_limited_force(F_drive_ideal, kappa, carInfo)
+            F_drive = pacejka_traction_limited_force(F_drive_ideal, kappa, carInfo)
 
         # Resistive forces
         F_drag = carInfo.cd * velocity**2
@@ -280,22 +288,22 @@ def plot_results(axes, results):
     ax0, ax1, ax2, ax3 = axes
 
     # Speed
-    ax0.plot(t, v * 3.6, label="Speed", lw=3)
+    ax0.plot(t, v * 3.6, label="Speed", lw=2)
     ax0.set_ylabel("Speed [km/h]")
     ax0.grid(True)
 
     # Acceleration in Gs
-    ax1.plot(t, a / G, label="Accel", color="C1", lw=3)  # G = 9.81 defined at top
+    ax1.plot(t, a / G, label="Accel", color="C1", lw=2)  # G = 9.81 defined at top
     ax1.set_ylabel("a_x [G]")
     ax1.grid(True)
     
     # Engine RPM
-    ax2.plot(t, rpm, label="Engine RPM", color="C3", lw=3)
+    ax2.plot(t, rpm, label="Engine RPM", color="C3", lw=2)
     ax2.set_ylabel("RPM")
     ax2.grid(True)
 
     # Gear
-    ax3.step(t, gear, where="post", label="Gear", color="C2", lw=3)
+    ax3.step(t, gear, where="post", label="Gear", color="C2", lw=2)
     ax3.set_ylabel("Gear")
     ax3.set_xlabel("Time [s]")
     ax3.grid(True)
@@ -315,13 +323,31 @@ def plot_torque_curve(ax):
 
     ax.set_xlim(5000, 14000)
     ax.set_ylim(0, 100)
-    ax.plot(rpm_smooth, tq_lbft_smooth, label="Torque (from engine_torque_from_rpm)", color="C0")
+    ax.plot(rpm_smooth, tq_lbft_smooth, label="Torque", color="C0")
     ax.scatter(rpms_base, tq_lbft_base, color="C1", label="Input map points")
     ax.set_xlabel("Engine speed [rpm]")
     ax.set_ylabel("Wheel torque [lb·ft]")
-    ax.set_title("Input Wheel Torque Map (via engine_torque_from_rpm)")
+    ax.set_title("Input Wheel Torque Map")
     ax.grid(True)
     ax.legend()
+
+def plot_tire_curve(ax, carInfo):
+    """Plot the frictional force of the tires across the power"""
+    kappa_range = [0, 4]
+
+    # Smooth kappa range
+    kappa_smooth = np.linspace(kappa_range[0], kappa_range[-1], 300)
+
+    # Use the sim's grip function (N)
+    grip_N_smooth = np.array([pacejka_traction_limited_force(100000, r, carInfo) for r in kappa_smooth])
+
+    ax.plot(kappa_smooth * 100, grip_N_smooth, color="C3", lw=3)
+    ax.set_xlabel("Slip Ratio [%]")
+    ax.set_xlim(0, 400)
+    ax.set_ylabel("Friction force [N]")
+    ax.set_ylim(0, 6000)
+    ax.set_title("Friction Limited Force of Tires")
+    ax.grid(True)
 
 def plot_FD_curves(ax, carInfo):
     """Plot FD sweep into the provided Axes ax."""
