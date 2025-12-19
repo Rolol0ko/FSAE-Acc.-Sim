@@ -71,7 +71,7 @@ SHIFT_RPM_THRESHOLDS = {
 }
 
 # Simulation control
-DT = 0.001               # [s] time step
+DT = 0.005                 # [s] time step
 T_MAX = 10.0             # [s] safety time limit
 
 # Distance Based
